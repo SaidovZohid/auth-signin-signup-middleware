@@ -6,8 +6,9 @@ import (
 
 	"github.com/SaidovZohid/auth-signin-signup-middleware/api"
 	"github.com/SaidovZohid/auth-signin-signup-middleware/config"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
+	"github.com/SaidovZohid/auth-signin-signup-middleware/storage"
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -19,15 +20,18 @@ func main() {
 		cfg.Postgres.Password,
 		cfg.Postgres.Database,
 	)
-	psqlConn, err := gorm.Open(postgres.Open(psql), &gorm.Config{})
+	psqlConn, err := sqlx.Connect("postgres", psql)
 
 	if err != nil {
-		log.Fatalf("failed to connec to existing database: %s", err)
+		log.Fatalf("failed to connect to existing database: %s", err)
 	}
 	fmt.Println("Succesfully Connected!")
 
+	strg := storage.NewStorageI(psqlConn)
+
 	apiServer := api.New(&api.RouteOptions{
-		Cfg: psqlConn,
+		Cfg: &cfg,
+		Storage: strg,
 	})
 
 	err = apiServer.Run(cfg.HttpPort)

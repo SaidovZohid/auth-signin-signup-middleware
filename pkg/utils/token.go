@@ -7,8 +7,8 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-func CreateToken(email string, duration time.Duration) (string, *Payload, error) {
-	payload, err := NewPayload(email, duration)
+func CreateToken(firstname, lastname, email string, duration time.Duration) (string, *Payload, error) {
+	payload, err := NewPayload(firstname, lastname, email, duration)
 	if err != nil {
 		return "", nil, err
 	}

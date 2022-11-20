@@ -6,6 +6,7 @@ import (
 
 	"github.com/SaidovZohid/auth-signin-signup-middleware/api/models"
 	"github.com/SaidovZohid/auth-signin-signup-middleware/pkg/utils"
+	"github.com/SaidovZohid/auth-signin-signup-middleware/storage/repo"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,16 +28,15 @@ func (sr *RouteOptions) SignUp(c *gin.Context) {
 		})
 		return
 	}
-	user := models.User{
+	err = sr.Storage.User().Create(&repo.User{
 		FirstName: req.FirstName,
 		LastName: req.LastName,
 		Email: req.Email,
 		Password: hashedPassword,
-	}
-	result := sr.Cfg.Create(user)
-	if result.Error != nil {
+	})
+	if err!= nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": result.Error.Error(),
+			"message": err.Error(),
 		})
 		return 
 	}
@@ -49,35 +49,40 @@ func (sr *RouteOptions) SignUp(c *gin.Context) {
 func (sr *RouteOptions) SignIn(c *gin.Context) {
 	var (
 		req models.SignInUser
-		user models.SignInUser
 	)
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+		c.JSON(http.StatusBadRequest, models.ResponseError{
+			Error: err.Error(),
 		})
 		return 
 	}
-	result := sr.Cfg.Table("users").Select("password", "email").Where("email = ?", req.Email).Scan(&user)
-	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid email or password!",
-		})
-		return 
-	}
-	
-	err := utils.CheckPassword(req.Password, user.Password)
-
+	user, err := sr.Storage.User().Get(req.Email)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Invalid email or password!",
+		c.JSON(http.StatusBadRequest, models.ResponseError{
+			Error: err.Error(),
+		})
+		return 
+	}
+	if user.ID == 0 {
+		c.JSON(http.StatusBadRequest, models.ResponseError{
+			Error:  err.Error(),
 		})
 		return 
 	}
 
-	token, _, err := utils.CreateToken(req.Email, time.Hour * 24 * 30)
+	err = utils.CheckPassword(req.Password, user.Password)
+
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": result.Error.Error(),
+		c.JSON(http.StatusBadRequest, models.ResponseError{
+			Error:  err.Error(),
+		})
+		return 
+	}
+
+	token, _, err := utils.CreateToken(user.FirstName, user.LastName, req.Email, time.Hour * 24 * 30)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.ResponseError{
+			Error:  err.Error(),
 		})
 		return 
 	}
@@ -85,13 +90,14 @@ func (sr *RouteOptions) SignIn(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authorization", token, 3600 * 24 * 30, "", "", false, true)
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "succesfully sign in",
+	c.JSON(http.StatusOK, models.ResponseOK{
+		Message: "Succesfully created.",
 	})
 }
 
 func (sr *RouteOptions) Validate(c *gin.Context) {
+	user, _ := c.Get("user")
 	c.JSON(http.StatusOK, gin.H{
-		"message": "You are Logged in",
+		"message": user,
 	})
 }
